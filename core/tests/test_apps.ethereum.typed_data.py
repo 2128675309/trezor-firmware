@@ -9,14 +9,16 @@ from trezor.enums import EthereumDataType as EDT
 
 
 if not utils.BITCOIN_ONLY:
-    from apps.ethereum.typed_data import (
+    from apps.ethereum.sign_typed_data import (
         encode_field,
         validate_value,
         validate_field_type,
         keccak256,
+        TypedDataEnvelope,
+    )
+    from apps.ethereum.helpers import (
         get_type_name,
         decode_data,
-        TypedDataEnvelope,
     )
 
 
