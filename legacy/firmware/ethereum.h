@@ -26,6 +26,8 @@
 #include "messages-ethereum.pb.h"
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node);
+void ethereum_signing_init_eip1559(const EthereumSignTxEIP1559 *msg,
+                                   const HDNode *node);
 void ethereum_signing_abort(void);
 void ethereum_signing_txack(const EthereumTxAck *msg);
 
