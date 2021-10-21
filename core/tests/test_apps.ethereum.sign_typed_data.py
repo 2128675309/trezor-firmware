@@ -18,7 +18,7 @@ if not utils.BITCOIN_ONLY:
     )
     from apps.ethereum.helpers import (
         get_type_name,
-        decode_data,
+        decode_typed_data,
     )
 
 
@@ -726,7 +726,7 @@ class TestEthereumSignTypedData(unittest.TestCase):
             res = get_type_name(field)
             self.assertEqual(res, expected)
 
-    def test_decode_data(self):
+    def test_decode_typed_data(self):
         VECTORS = (  # data, type_name, expected
             (b"\x4a\x56", "bytes", "4a56"),
             (b"Hello, Bob!", "string", "Hello, Bob!"),
@@ -744,7 +744,7 @@ class TestEthereumSignTypedData(unittest.TestCase):
         )
 
         for data, type_name, expected in VECTORS:
-            res = decode_data(data, type_name)
+            res = decode_typed_data(data, type_name)
             self.assertEqual(res, expected)
 
 

@@ -17,7 +17,7 @@ from trezor.ui.layouts.tt.altcoin import confirm_total_ethereum
 from apps.common.confirm import confirm
 
 from . import networks, tokens
-from .helpers import address_from_bytes, decode_data, get_type_name
+from .helpers import address_from_bytes, decode_typed_data, get_type_name
 
 if False:
     from typing import Awaitable, Iterable, Optional
@@ -128,8 +128,8 @@ async def confirm_hash(ctx: Context, primary_type: str, typed_data_hash: bytes) 
 async def should_show_domain(ctx: Context, name: bytes, version: bytes) -> bool:
     page = Text("Typed Data", ui.ICON_SEND, icon_color=ui.GREEN)
 
-    domain_name = decode_data(name, "string")
-    domain_version = decode_data(version, "string")
+    domain_name = decode_typed_data(name, "string")
+    domain_version = decode_typed_data(version, "string")
 
     page.bold(f"Name: {domain_name}")
     page.normal(f"Version: {domain_version}")
@@ -203,7 +203,7 @@ async def confirm_typed_value(
         array_str = ""
 
     description = f"{name}{array_str} ({type_name})"
-    data = decode_data(value, type_name)
+    data = decode_typed_data(value, type_name)
 
     if field.data_type in (EthereumDataType.ADDRESS, EthereumDataType.BYTES):
         await confirm_blob(
