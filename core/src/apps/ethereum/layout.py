@@ -1,10 +1,9 @@
 from ubinascii import hexlify
 
-from trezor import ui
+from trezor import ui, wire
 from trezor.enums import ButtonRequestType, EthereumDataType
 from trezor.messages import EthereumFieldType, EthereumStructMember
 from trezor.strings import format_amount
-from trezor.ui.components.tt.text import Text
 from trezor.ui.layouts import (
     confirm_address,
     confirm_amount,
@@ -13,8 +12,6 @@ from trezor.ui.layouts import (
     confirm_text,
 )
 from trezor.ui.layouts.tt.altcoin import confirm_total_ethereum
-
-from apps.common.confirm import confirm
 
 from . import networks, tokens
 from .helpers import address_from_bytes, decode_typed_data, get_type_name
@@ -115,28 +112,33 @@ async def confirm_hash(ctx: Context, primary_type: str, typed_data_hash: bytes) 
     data = "0x" + hexlify(typed_data_hash).decode()
     await confirm_blob(
         ctx,
-        "confirm_resulting_hash",
+        "confirm_hash",
         title="Sign typed data?",
         description=f"Hashed {primary_type}:",
         data=data,
         hold=True,
-        icon=ui.ICON_CONFIG,
-        icon_color=ui.GREEN,
+        bold=True,
+        ask_pagination=True,
     )
 
 
 async def should_show_domain(ctx: Context, name: bytes, version: bytes) -> bool:
-    page = Text("Typed Data", ui.ICON_SEND, icon_color=ui.GREEN)
-
     domain_name = decode_typed_data(name, "string")
     domain_version = decode_typed_data(version, "string")
 
-    page.bold(f"Name: {domain_name}")
-    page.normal(f"Version: {domain_version}")
-    page.br()
-    page.mono("View EIP712Domain?")
-
-    return await confirm(ctx, page, ButtonRequestType.Other)
+    # TODO: there should be a better approach how to get
+    # a True/False value from user than this try/except
+    try:
+        await confirm_text(
+            ctx,
+            "should_show_domain",
+            title="View EIP712Domain?",
+            data="\n".join((domain_name, domain_version)),
+            description="Name and version:",
+        )
+        return True
+    except wire.ActionCancelled:
+        return False
 
 
 async def should_show_struct(
@@ -145,41 +147,41 @@ async def should_show_struct(
     parent_objects: Iterable[str],
     data_members: list[EthereumStructMember],
 ) -> bool:
-    title = f"{'.'.join(parent_objects)} - {primary_type}"
-    page = Text(title, ui.ICON_SEND, icon_color=ui.GREEN)
-
-    # We have limited screen space, so showing only a preview when having lot of fields
-    MAX_FIELDS_TO_SHOW = 3
-    fields_amount = len(data_members)
-    if fields_amount > MAX_FIELDS_TO_SHOW:
-        for field in data_members[:MAX_FIELDS_TO_SHOW]:
-            page.bold(limit_str(field.name))
-        page.mono(f"...and {fields_amount - MAX_FIELDS_TO_SHOW} more.")
-    else:
-        for field in data_members:
-            page.bold(limit_str(field.name))
-
-    page.mono("View full struct?")
-
-    return await confirm(ctx, page, ButtonRequestType.Other)
+    # TODO: there should be a better approach how to get
+    # a True/False value from user than this try/except
+    try:
+        await confirm_text(
+            ctx,
+            "should_show_struct",
+            title="View full struct?",
+            data="\n".join(field.name for field in data_members),
+            description=f"{'.'.join(parent_objects)} ({primary_type})",
+            ask_pagination=True,
+        )
+        return True
+    except wire.ActionCancelled:
+        return False
 
 
 async def should_show_array(
     ctx: Context,
-    name: str,
     parent_objects: Iterable[str],
     data_type: str,
     size: int,
 ) -> bool:
-    title = f"{'.'.join(parent_objects)} - {name}"
-    page = Text(title, ui.ICON_SEND, icon_color=ui.GREEN)
-
-    page.bold(limit_str(f"Type: {data_type}"))
-    page.bold(limit_str(f"Size: {size}"))
-    page.br()
-    page.mono("View full array?")
-
-    return await confirm(ctx, page, ButtonRequestType.Other)
+    # TODO: there should be a better approach how to get
+    # a True/False value from user than this try/except
+    try:
+        await confirm_text(
+            ctx,
+            "should_show_array",
+            title="View full array?",
+            data="\n".join((f"Type: {data_type}", f"Size: {size}")),
+            description=".".join(parent_objects),
+        )
+        return True
+    except wire.ActionCancelled:
+        return False
 
 
 async def confirm_typed_value(
@@ -193,7 +195,7 @@ async def confirm_typed_value(
 ) -> None:
     type_name = get_type_name(field)
     if parent_objects:
-        title = f"{'.'.join(parent_objects)} - {primary_type}"
+        title = f"{'.'.join(parent_objects)} ({primary_type})"
     else:
         title = primary_type
 
@@ -208,20 +210,20 @@ async def confirm_typed_value(
     if field.data_type in (EthereumDataType.ADDRESS, EthereumDataType.BYTES):
         await confirm_blob(
             ctx,
-            "show_data",
+            "confirm_typed_value",
             title=title,
             data=data,
             description=description,
-            br_code=ButtonRequestType.Other,
+            bold=True,
+            ask_pagination=True,
         )
     else:
         await confirm_text(
             ctx,
-            "show_data",
+            "confirm_typed_value",
             title=title,
             data=data,
             description=description,
-            br_code=ButtonRequestType.Other,
         )
 
 

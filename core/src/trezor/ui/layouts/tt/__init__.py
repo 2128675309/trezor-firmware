@@ -561,6 +561,7 @@ async def confirm_blob(
     data: bytes | str,
     description: str | None = None,
     hold: bool = False,
+    bold: bool = False,
     br_code: ButtonRequestType = ButtonRequestType.Other,
     icon: str = ui.ICON_SEND,  # TODO cleanup @ redesign
     icon_color: int = ui.GREEN,  # TODO cleanup @ redesign
@@ -607,12 +608,15 @@ async def confirm_blob(
 
         else:
             per_line = MONO_HEX_PER_LINE
-        text.mono(ui.FG, *chunks_intersperse(data_str, per_line))
+        text.mono(ui.BOLD if bold else ui.FG, *chunks_intersperse(data_str, per_line))
         content: ui.Layout = HoldToConfirm(text) if hold else Confirm(text)
         return await raise_if_cancelled(interact(ctx, content, br_type, br_code))
 
     elif ask_pagination:
-        para = [(ui.MONO, line) for line in chunks(data_str, MONO_HEX_PER_LINE - 2)]
+        para = [
+            (ui.BOLD if bold else ui.MONO, line)
+            for line in chunks(data_str, MONO_HEX_PER_LINE - 2)
+        ]
 
         para_truncated = []
         if description is not None:
@@ -627,7 +631,10 @@ async def confirm_blob(
         para = []
         if description is not None:
             para.append((ui.NORMAL, description))
-        para.extend((ui.MONO, line) for line in chunks(data_str, MONO_HEX_PER_LINE - 2))
+        para.extend(
+            (ui.BOLD if bold else ui.MONO, line)
+            for line in chunks(data_str, MONO_HEX_PER_LINE - 2)
+        )
 
         paginated = paginate_paragraphs(
             para, title, icon, icon_color, confirm=HoldToConfirm if hold else Confirm
@@ -668,6 +675,7 @@ async def confirm_text(
     br_code: ButtonRequestType = ButtonRequestType.Other,
     icon: str = ui.ICON_SEND,  # TODO cleanup @ redesign
     icon_color: int = ui.GREEN,  # TODO cleanup @ redesign
+    ask_pagination: bool = False,
 ) -> None:
     """Confirm textual data.
 
@@ -692,6 +700,19 @@ async def confirm_text(
             text.br()
         text.bold(data)
         content: ui.Layout = Confirm(text)
+        return await raise_if_cancelled(interact(ctx, content, br_type, br_code))
+
+    elif ask_pagination:
+        para = [(ui.BOLD, line) for line in data.split("\n")]
+
+        para_truncated = []
+        if description is not None:
+            para_truncated.append((ui.NORMAL, description))
+        para_truncated.extend(para[:TEXT_MAX_LINES])
+
+        return await _confirm_ask_pagination(
+            ctx, br_type, title, para, para_truncated, br_code, icon, icon_color
+        )
 
     else:
         para = []
@@ -699,7 +720,7 @@ async def confirm_text(
             para.append((ui.NORMAL, description))
         para.append((ui.BOLD, data))
         content = paginate_paragraphs(para, title, icon, icon_color)
-    await raise_if_cancelled(interact(ctx, content, br_type, br_code))
+        return await raise_if_cancelled(interact(ctx, content, br_type, br_code))
 
 
 def confirm_amount(

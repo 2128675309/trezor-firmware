@@ -268,7 +268,6 @@ class TypedDataEnvelope:
                 if show_data:
                     show_array = await should_show_array(
                         ctx=self.ctx,
-                        name=member.name,
                         parent_objects=current_parent_objects,
                         data_type=get_type_name(entry_type),
                         size=array_size,
