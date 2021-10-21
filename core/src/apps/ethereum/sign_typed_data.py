@@ -364,11 +364,11 @@ def encode_field(
         w.extend(keccak256(value))
     elif data_type == EthereumDataType.INT:
         write_leftpad32(w, value, signed=True)
-    elif data_type in [
+    elif data_type in (
         EthereumDataType.UINT,
         EthereumDataType.BOOL,
         EthereumDataType.ADDRESS,
-    ]:
+    ):
         write_leftpad32(w, value)
     else:
         raise ValueError  # Unsupported data type for field encoding
@@ -458,17 +458,17 @@ def validate_field_type(field: EthereumFieldType) -> None:
     elif data_type == EthereumDataType.BYTES:
         if field.size is not None and not 1 <= field.size <= 32:
             raise wire.DataError("Invalid size in bytes")
-    elif data_type in [
+    elif data_type in (
         EthereumDataType.UINT,
         EthereumDataType.INT,
-    ]:
+    ):
         if field.size is None or not 1 <= field.size <= 32:
             raise wire.DataError("Invalid size in int/uint")
-    elif data_type in [
+    elif data_type in (
         EthereumDataType.STRING,
         EthereumDataType.BOOL,
         EthereumDataType.ADDRESS,
-    ]:
+    ):
         if field.size is not None:
             raise wire.DataError("Unexpected size in str/bool/addr")
 
