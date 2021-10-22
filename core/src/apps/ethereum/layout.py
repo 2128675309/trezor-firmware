@@ -1,6 +1,6 @@
 from ubinascii import hexlify
 
-from trezor import ui, wire
+from trezor import ui
 from trezor.enums import ButtonRequestType, EthereumDataType
 from trezor.messages import EthereumFieldType, EthereumStructMember
 from trezor.strings import format_amount
@@ -10,6 +10,7 @@ from trezor.ui.layouts import (
     confirm_blob,
     confirm_output,
     confirm_text,
+    should_show_more,
 )
 from trezor.ui.layouts.tt.altcoin import confirm_total_ethereum
 
@@ -108,16 +109,13 @@ def require_confirm_data(ctx: Context, data: bytes, data_total: int) -> Awaitabl
     )
 
 
-async def confirm_hash(ctx: Context, primary_type: str, typed_data_hash: bytes) -> None:
-    data = "0x" + hexlify(typed_data_hash).decode()
+async def confirm_hash(ctx: Context, message_hash: bytes) -> None:
     await confirm_blob(
         ctx,
         "confirm_hash",
-        title="Sign typed data?",
-        description=f"Hashed {primary_type}:",
-        data=data,
+        title="Confirm hash",
+        data="0x" + hexlify(message_hash).decode(),
         hold=True,
-        bold=True,
         ask_pagination=True,
     )
 
@@ -126,41 +124,32 @@ async def should_show_domain(ctx: Context, name: bytes, version: bytes) -> bool:
     domain_name = decode_typed_data(name, "string")
     domain_version = decode_typed_data(version, "string")
 
-    # TODO: there should be a better approach how to get
-    # a True/False value from user than this try/except
-    try:
-        await confirm_text(
-            ctx,
-            "should_show_domain",
-            title="View EIP712Domain?",
-            data="\n".join((domain_name, domain_version)),
-            description="Name and version:",
-        )
-        return True
-    except wire.ActionCancelled:
-        return False
+    para = (
+        (ui.NORMAL, "Name and version"),
+        (ui.BOLD, domain_name),
+        (ui.BOLD, domain_version),
+    )
+    return await should_show_more(
+        ctx,
+        title="Confirm domain",
+        para=para,
+        button_text="Show full domain",
+    )
 
 
 async def should_show_struct(
     ctx: Context,
-    primary_type: str,
-    parent_objects: Iterable[str],
+    description: str,
     data_members: list[EthereumStructMember],
+    title: str = "Confirm struct",
+    button_text: str = "Show full struct",
 ) -> bool:
-    # TODO: there should be a better approach how to get
-    # a True/False value from user than this try/except
-    try:
-        await confirm_text(
-            ctx,
-            "should_show_struct",
-            title="View full struct?",
-            data="\n".join(field.name for field in data_members),
-            description=f"{'.'.join(parent_objects)} ({primary_type})",
-            ask_pagination=True,
-        )
-        return True
-    except wire.ActionCancelled:
-        return False
+    para = (
+        (ui.BOLD, description),
+        (ui.NORMAL, f"Contains {len(data_members)} keys"),
+        (ui.NORMAL, ", ".join(field.name for field in data_members)),
+    )
+    return await should_show_more(ctx, title=title, para=para, button_text=button_text)
 
 
 async def should_show_array(
@@ -169,42 +158,32 @@ async def should_show_array(
     data_type: str,
     size: int,
 ) -> bool:
-    # TODO: there should be a better approach how to get
-    # a True/False value from user than this try/except
-    try:
-        await confirm_text(
-            ctx,
-            "should_show_array",
-            title="View full array?",
-            data="\n".join((f"Type: {data_type}", f"Size: {size}")),
-            description=".".join(parent_objects),
-        )
-        return True
-    except wire.ActionCancelled:
-        return False
+    para = ((ui.NORMAL, f"Array of {size} {data_type}{'s' if size > 1 else ''}"),)
+    return await should_show_more(
+        ctx,
+        title=limit_str(".".join(parent_objects)),
+        para=para,
+        button_text="Show full array",
+    )
 
 
 async def confirm_typed_value(
     ctx: Context,
     name: str,
     value: bytes,
-    parent_objects: Iterable[str],
-    primary_type: str,
+    parent_objects: list[str],
     field: EthereumFieldType,
     array_index: Optional[int] = None,
 ) -> None:
     type_name = get_type_name(field)
-    if parent_objects:
-        title = f"{'.'.join(parent_objects)} ({primary_type})"
-    else:
-        title = primary_type
 
     if array_index is not None:
-        array_str = f"[{array_index}]"
+        title = limit_str(".".join(parent_objects + [name]))
+        description = f"[{array_index}] ({type_name})"
     else:
-        array_str = ""
+        title = limit_str(".".join(parent_objects))
+        description = f"{name} ({type_name})"
 
-    description = f"{name}{array_str} ({type_name})"
     data = decode_typed_data(value, type_name)
 
     if field.data_type in (EthereumDataType.ADDRESS, EthereumDataType.BYTES):
@@ -214,7 +193,6 @@ async def confirm_typed_value(
             title=title,
             data=data,
             description=description,
-            bold=True,
             ask_pagination=True,
         )
     else:
@@ -246,7 +224,8 @@ def format_ethereum_amount(
 
 
 def limit_str(s: str, limit: int = 16) -> str:
+    """Shortens string to show the last <limit> characters."""
     if len(s) <= limit + 2:
         return s
 
-    return s[:limit] + ".."
+    return ".." + s[-limit:]

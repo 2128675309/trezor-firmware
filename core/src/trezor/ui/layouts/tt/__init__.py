@@ -74,6 +74,7 @@ __all__ = (
     "draw_simple_text",
     "request_passphrase_on_device",
     "request_pin_on_device",
+    "should_show_more",
 )
 
 
@@ -510,6 +511,26 @@ async def confirm_output(
     await raise_if_cancelled(interact(ctx, content, "confirm_output", br_code))
 
 
+async def should_show_more(
+    ctx: wire.GenericContext,
+    title: str,
+    para: Iterable[tuple[int, str]],
+    button_text: str = "Show details",
+) -> bool:
+    page = Text(
+        title,
+        new_lines=False,
+        max_lines=TEXT_MAX_LINES - 2,
+    )
+    for font, text in para:
+        page.content.extend((font, text, "\n"))
+    ask_dialog = Confirm(AskPaginated(page, button_text))
+
+    # Result is either CONFIRMED or SHOW_PAGINATED (or raises ActionCancelled)
+    result = await raise_if_cancelled(interact(ctx, ask_dialog, "br_type"))
+    return result is SHOW_PAGINATED
+
+
 async def _confirm_ask_pagination(
     ctx: wire.GenericContext,
     br_type: str,
@@ -561,7 +582,6 @@ async def confirm_blob(
     data: bytes | str,
     description: str | None = None,
     hold: bool = False,
-    bold: bool = False,
     br_code: ButtonRequestType = ButtonRequestType.Other,
     icon: str = ui.ICON_SEND,  # TODO cleanup @ redesign
     icon_color: int = ui.GREEN,  # TODO cleanup @ redesign
@@ -608,15 +628,12 @@ async def confirm_blob(
 
         else:
             per_line = MONO_HEX_PER_LINE
-        text.mono(ui.BOLD if bold else ui.FG, *chunks_intersperse(data_str, per_line))
+        text.mono(ui.FG, *chunks_intersperse(data_str, per_line))
         content: ui.Layout = HoldToConfirm(text) if hold else Confirm(text)
         return await raise_if_cancelled(interact(ctx, content, br_type, br_code))
 
     elif ask_pagination:
-        para = [
-            (ui.BOLD if bold else ui.MONO, line)
-            for line in chunks(data_str, MONO_HEX_PER_LINE - 2)
-        ]
+        para = [(ui.MONO, line) for line in chunks(data_str, MONO_HEX_PER_LINE - 2)]
 
         para_truncated = []
         if description is not None:
@@ -631,10 +648,7 @@ async def confirm_blob(
         para = []
         if description is not None:
             para.append((ui.NORMAL, description))
-        para.extend(
-            (ui.BOLD if bold else ui.MONO, line)
-            for line in chunks(data_str, MONO_HEX_PER_LINE - 2)
-        )
+        para.extend((ui.MONO, line) for line in chunks(data_str, MONO_HEX_PER_LINE - 2))
 
         paginated = paginate_paragraphs(
             para, title, icon, icon_color, confirm=HoldToConfirm if hold else Confirm

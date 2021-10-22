@@ -33,8 +33,6 @@ if False:
 # Maximum data size we support
 MAX_VALUE_BYTE_SIZE = 1024
 
-# TODO: get better layouts
-
 
 @with_keychain_from_path(*PATTERNS_ADDRESS)
 async def sign_typed_data(
@@ -79,11 +77,15 @@ async def generate_typed_data_hash(
         primary_type="EIP712Domain",
         member_path=[0],
         show_data=show_domain,
-        parent_objects=[],
+        parent_objects=["EIP712Domain"],
     )
 
     show_message = await should_show_struct(
-        ctx, primary_type, ["data"], typed_data_envelope.types[primary_type].members
+        ctx,
+        description=primary_type,
+        data_members=typed_data_envelope.types[primary_type].members,
+        title="Confirm message",
+        button_text="Show full message",
     )
     message_hash = await typed_data_envelope.hash_struct(
         primary_type=primary_type,
@@ -92,7 +94,7 @@ async def generate_typed_data_hash(
         parent_objects=[primary_type],
     )
 
-    await confirm_hash(ctx, primary_type, message_hash)
+    await confirm_hash(ctx, message_hash)
 
     return keccak256(b"\x19" + b"\x01" + domain_separator + message_hash)
 
@@ -143,9 +145,9 @@ class TypedDataEnvelope:
     async def hash_struct(
         self,
         primary_type: str,
-        member_path: list,
+        member_path: list[int],
         show_data: bool,
-        parent_objects: list,
+        parent_objects: list[str],
     ) -> bytes:
         """Generate a hash representation of the whole struct."""
         w = get_hash_writer()
@@ -177,9 +179,8 @@ class TypedDataEnvelope:
         deps: set[str] = set()
         self.find_typed_dependencies(primary_type, deps)
         deps.remove(primary_type)
-        primary_first_sorted_deps = [primary_type] + sorted(deps)
 
-        for type_name in primary_first_sorted_deps:
+        for type_name in [primary_type] + sorted(deps):
             members = self.types[type_name].members
             fields = ",".join(f"{get_type_name(m.type)} {m.name}" for m in members)
             result.append(f"{type_name}({fields})")
@@ -213,9 +214,9 @@ class TypedDataEnvelope:
         self,
         w: HashWriter,
         primary_type: str,
-        member_path: list,
+        member_path: list[int],
         show_data: bool,
-        parent_objects: list,
+        parent_objects: list[str],
     ) -> None:
         """
         Gradually fetch data from client and encode the whole struct.
@@ -228,21 +229,21 @@ class TypedDataEnvelope:
         type_members = self.types[primary_type].members
         for member_index, member in enumerate(type_members):
             member_value_path = member_path + [member_index]
-            data_type = member.type.data_type
             field_name = member.name
+            field_type = member.type
 
             # Arrays and structs need special recursive handling
-            if data_type == EthereumDataType.STRUCT:
-                assert member.type.struct_name is not None  # validate_field_type
-                struct_name = member.type.struct_name
+            if field_type.data_type == EthereumDataType.STRUCT:
+                assert field_type.struct_name is not None  # validate_field_type
+                struct_name = field_type.struct_name
                 current_parent_objects = parent_objects + [field_name]
 
                 if show_data:
                     show_struct = await should_show_struct(
                         ctx=self.ctx,
-                        primary_type=struct_name,
-                        parent_objects=current_parent_objects,
+                        description=struct_name,
                         data_members=self.types[struct_name].members,
+                        title=".".join(current_parent_objects),
                     )
                 else:
                     show_struct = False
@@ -254,15 +255,15 @@ class TypedDataEnvelope:
                     parent_objects=current_parent_objects,
                 )
                 w.extend(res)
-            elif data_type == EthereumDataType.ARRAY:
+            elif field_type.data_type == EthereumDataType.ARRAY:
                 # Getting the length of the array first, if not fixed
-                if member.type.size is None:
+                if field_type.size is None:
                     array_size = await get_array_size(self.ctx, member_value_path)
                 else:
-                    array_size = member.type.size
+                    array_size = field_type.size
 
-                assert member.type.entry_type is not None  # validate_field_type
-                entry_type = member.type.entry_type
+                assert field_type.entry_type is not None  # validate_field_type
+                entry_type = field_type.entry_type
                 current_parent_objects = parent_objects + [field_name]
 
                 if show_data:
@@ -312,22 +313,20 @@ class TypedDataEnvelope:
                                 name=field_name,
                                 value=value,
                                 parent_objects=parent_objects,
-                                primary_type=primary_type,
                                 field=entry_type,
                                 array_index=i,
                             )
                 w.extend(arr_w.get_digest())
             else:
-                value = await get_value(self.ctx, member.type, member_value_path)
-                encode_field(w, member.type, value)
+                value = await get_value(self.ctx, field_type, member_value_path)
+                encode_field(w, field_type, value)
                 if show_data:
                     await confirm_typed_value(
                         ctx=self.ctx,
                         name=field_name,
                         value=value,
                         parent_objects=parent_objects,
-                        primary_type=primary_type,
-                        field=member.type,
+                        field=field_type,
                     )
 
 
@@ -472,7 +471,7 @@ def validate_field_type(field: EthereumFieldType) -> None:
             raise wire.DataError("Unexpected size in str/bool/addr")
 
 
-async def get_array_size(ctx: Context, member_path: list) -> int:
+async def get_array_size(ctx: Context, member_path: list[int]) -> int:
     """Get the length of an array at specific `member_path` from the client."""
     # Field type for getting the array length from client, so we can check the return value
     ARRAY_LENGTH_TYPE = EthereumFieldType(data_type=EthereumDataType.UINT, size=2)
@@ -483,7 +482,7 @@ async def get_array_size(ctx: Context, member_path: list) -> int:
 async def get_value(
     ctx: Context,
     field: EthereumFieldType,
-    member_value_path: list,
+    member_value_path: list[int],
 ) -> bytes:
     """Get a single value from the client and perform its validation."""
     req = EthereumTypedDataValueRequest(
@@ -499,7 +498,7 @@ async def get_value(
 
 async def get_name_and_version_for_domain(
     ctx: Context, typed_data_envelope: TypedDataEnvelope
-) -> tuple:
+) -> tuple[bytes, bytes]:
     domain_name = b"unknown"
     domain_version = b"unknown"
 

@@ -75,8 +75,7 @@ def get_type_name(field: EthereumFieldType) -> str:
         return field.struct_name
     elif data_type == EthereumDataType.ARRAY:
         assert field.entry_type is not None  # validate_field_type
-        entry_type = field.entry_type
-        type_name = get_type_name(entry_type)
+        type_name = get_type_name(field.entry_type)
         if size is None:
             return f"{type_name}[]"
         else:
