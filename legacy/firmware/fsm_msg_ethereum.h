@@ -60,7 +60,7 @@ void fsm_msgEthereumGetPublicKey(const EthereumGetPublicKey *msg) {
   layoutHome();
 }
 
-void fsm_msgEthereumSignTx(EthereumSignTx *msg) {
+void fsm_msgEthereumSignTx(const EthereumSignTx *msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN

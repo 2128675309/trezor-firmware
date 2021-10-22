@@ -43,8 +43,6 @@ recalculate the full value: v = 2 * chain_id + 35 + v_bit */
 #define MAX_CHAIN_ID ((0xFFFFFFFF - 36) >> 1)
 #define EIP1559_TX_TYPE 2
 
-static const uint8_t emptybytes[] = {0};
-
 static bool ethereum_signing = false;
 static uint32_t data_total, data_left;
 static EthereumTxRequest msg_tx_request;
@@ -594,26 +592,19 @@ static bool ethereum_signing_confirm_common(
   return true;
 }
 
-void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node) {
-  /* set fields to 0, to avoid conditions later */
-  if (!msg->has_value) msg->value.size = 0;
-  if (!msg->has_nonce) msg->nonce.size = 0;
-
+void ethereum_signing_init(const EthereumSignTx *msg, const HDNode *node) {
   struct signing_params params = {
       .chain_id = msg->chain_id,
 
-      .data_length = msg->has_data_length ? msg->data_length : 0,
-      .data_initial_chunk_size =
-          msg->has_data_initial_chunk ? msg->data_initial_chunk.size : 0,
-      .data_initial_chunk_bytes = msg->has_data_initial_chunk
-                                      ? msg->data_initial_chunk.bytes
-                                      : emptybytes,
+      .data_length = msg->data_length,
+      .data_initial_chunk_size = msg->data_initial_chunk.size,
+      .data_initial_chunk_bytes = msg->data_initial_chunk.bytes,
 
       .has_to = msg->has_to,
-      .to = msg->has_to ? msg->to : "",
+      .to = msg->to,
 
-      .value_size = msg->has_value ? msg->value.size : 0,
-      .value_bytes = msg->has_value ? msg->value.bytes : emptybytes,
+      .value_size = msg->value.size,
+      .value_bytes = msg->value.bytes,
   };
 
   eip1559 = false;
@@ -712,14 +703,11 @@ void ethereum_signing_init_eip1559(const EthereumSignTxEIP1559 *msg,
       .chain_id = msg->chain_id,
 
       .data_length = msg->data_length,
-      .data_initial_chunk_size =
-          msg->has_data_initial_chunk ? msg->data_initial_chunk.size : 0,
-      .data_initial_chunk_bytes = msg->has_data_initial_chunk
-                                      ? msg->data_initial_chunk.bytes
-                                      : emptybytes,
+      .data_initial_chunk_size = msg->data_initial_chunk.size,
+      .data_initial_chunk_bytes = msg->data_initial_chunk.bytes,
 
       .has_to = msg->has_to,
-      .to = msg->has_to ? msg->to : "",
+      .to = msg->to,
 
       .value_size = msg->value.size,
       .value_bytes = msg->value.bytes,
